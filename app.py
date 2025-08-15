@@ -1,21 +1,21 @@
 from flask import Flask
-import asyncio
+import os
 import threading
-from bot import conectar_deriv  # Importamos la función de bot.py
+import bot  # Importa tu bot.py
 
 app = Flask(__name__)
 
-# Endpoint de salud para Render
-@app.route("/health")
-def health():
-    return "Bot activo ✅", 200
+@app.route("/")
+def index():
+    return "Bot Sarah activo en Render ✅"
 
-# Función para correr asyncio en un hilo separado
-def start_bot():
-    asyncio.run(conectar_deriv())
+# Ejecutar bot en un hilo separado para que Flask siga corriendo
+def run_bot():
+    import asyncio
+    asyncio.run(bot.conectar_deriv())
 
-# Iniciamos el bot en segundo plano
-threading.Thread(target=start_bot).start()
+threading.Thread(target=run_bot).start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 8000))  # Render asigna la variable PORT
+    app.run(host="0.0.0.0", port=port)
