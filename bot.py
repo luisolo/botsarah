@@ -3,6 +3,7 @@ import asyncio
 import websockets
 import json
 from telegram import Bot
+from threading import Thread
 
 # Cargar variables de entorno
 DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN")
@@ -11,7 +12,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DERIV_ENV = os.getenv("DERIV_ENV", "demo")
 
 if not TELEGRAM_TOKEN:
-    raise ValueError("Error: La variable de entorno TELEGRAM_TOKEN no está definida o es incorrecta.")
+    raise ValueError("Error: TELEGRAM_TOKEN no definido.")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
@@ -21,7 +22,6 @@ async def conectar_deriv():
     while True:
         try:
             async with websockets.connect(url) as websocket:
-                # Autenticación
                 await websocket.send(json.dumps({"authorize": DERIV_API_TOKEN}))
                 auth_response = await websocket.recv()
                 print("Autenticación exitosa:", auth_response)
@@ -29,13 +29,21 @@ async def conectar_deriv():
                 await bot.send_message(chat_id=TELEGRAM_CHAT_ID,
                                        text=f"Bot conectado a Deriv ({DERIV_ENV}) ✅")
 
-                # Loop de recepción de mensajes
                 while True:
                     mensaje = await websocket.recv()
                     print("Mensaje recibido:", mensaje)
 
         except Exception as e:
             print("Error de conexión:", e)
-            await bot.send_message(chat_id=TELEGRAM_CHAT_ID,
-                                   text=f"Error de conexión: {e}. Reintentando en 10s...")
+            try:
+                await bot.send_message(chat_id=TELEGRAM_CHAT_ID,
+                                       text=f"Error de conexión: {e}. Reintentando en 10s...")
+            except:
+                pass
             await asyncio.sleep(10)
+
+def iniciar_bot():
+    asyncio.run(conectar_deriv())
+
+# Iniciar el bot en un hilo independiente
+Thread(target=iniciar_bot, daemon=True).start()
