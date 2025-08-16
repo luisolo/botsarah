@@ -4,8 +4,10 @@ import socket
 import websockets
 import json
 from telegram import Bot
+from flask import Flask
+import threading
 
-# 🔑 Variables de entorno
+# 🔹 Variables de entorno
 DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN", "qB41nVQ9ugtd31i")  # demo token
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -70,5 +72,19 @@ async def start_bot():
 
             await asyncio.sleep(10)
 
+# 🔹 Servidor HTTP mínimo para cumplir requisito Web Service de Render
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "Bot Sarah activo ✅"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))  # Render asigna automáticamente
+    app.run(host="0.0.0.0", port=port)
+
+threading.Thread(target=run_flask).start()
+
+# 🔹 Ejecutar bot
 if __name__ == "__main__":
     asyncio.run(start_bot())
