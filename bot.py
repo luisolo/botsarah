@@ -3,8 +3,6 @@ import asyncio
 import websockets
 import json
 from telegram import Bot
-from flask import Flask
-import threading
 
 # 🔹 Variables de entorno
 DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN")
@@ -17,13 +15,11 @@ if not TELEGRAM_TOKEN:
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# 🔹 Bot principal
 async def start_bot():
-    url = "wss://ws.deriv.com/websockets/v6"  # URL directa, sin resolver IP manual
+    url = "wss://ws.deriv.com/websockets/v6"
     while True:
         try:
             async with websockets.connect(url) as websocket:
-                # Autorizar con Deriv
                 await websocket.send(json.dumps({"authorize": DERIV_API_TOKEN}))
                 auth_response = await websocket.recv()
                 print("🔑 Autenticación exitosa:", auth_response)
@@ -33,7 +29,7 @@ async def start_bot():
                     text=f"✅ Bot conectado a Deriv ({DERIV_ENV})"
                 )
 
-                # Ejemplo: suscribir a ticks del índice sintético R_50
+                # Suscribirse a ticks o cualquier otra acción
                 await websocket.send(json.dumps({"ticks": "R_50"}))
 
                 while True:
@@ -49,22 +45,8 @@ async def start_bot():
                 )
             except Exception as telegram_error:
                 print(f"⚠️ Error enviando mensaje a Telegram: {telegram_error}")
-
             await asyncio.sleep(10)
 
-# 🔹 Servidor HTTP mínimo para Render Web Service
-app = Flask(__name__)
-
-@app.route("/")
-def index():
-    return "Bot Sarah activo ✅"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))  # Render asigna automáticamente
-    app.run(host="0.0.0.0", port=port)
-
-threading.Thread(target=run_flask).start()
-
-# 🔹 Ejecutar bot
+# 🔹 Ejecutar bot en Worker
 if __name__ == "__main__":
     asyncio.run(start_bot())
