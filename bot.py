@@ -1,8 +1,8 @@
-import requests
-import threading
+import asyncio
 import time
+from threading import Thread
 from flask import Flask
-from telegram import Bot, Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ====== Configuración IC Markets ======
@@ -12,63 +12,41 @@ BASE_URL = "https://api-demo.icmarkets.com"
 # ====== Configuración Telegram ======
 TELEGRAM_TOKEN = "TU_TELEGRAM_TOKEN"
 TELEGRAM_CHAT_ID = "TU_CHAT_ID"
-bot_telegram = Bot(token=TELEGRAM_TOKEN)
 
 # ====== Variables de control ======
 bot_activo = False
 estado_bot = "Detenido"
 operaciones = []  # Lista de dicts con info de operaciones
-
-# ====== Capital ======
-CAPITAL_INICIAL = 10000  # Ejemplo: 10,000 USD demo
+CAPITAL_INICIAL = 10000
 capital_disponible = CAPITAL_INICIAL
 
-# ====== Funciones IC Markets ======
+# ====== Funciones placeholder IC Markets ======
 def get_price(symbol="EURUSD"):
-    try:
-        url = f"{BASE_URL}/v1/ticks/{symbol}"
-        headers = {"Authorization": f"Bearer {API_TOKEN}"}
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        bid = data["bid"]
-        ask = data["ask"]
-        return bid, ask
-    except Exception as e:
-        print("⚠️ Error obteniendo precio:", e)
-        return None, None
+    # Aquí va tu request real a IC Markets API
+    # Placeholder: devuelve un precio simulado
+    bid = 1.1000
+    ask = 1.1002
+    return bid, ask
 
-# ====== Estrategia Swing Trading ======
 def analizar_estrategia(symbol="EURUSD"):
     bid, ask = get_price(symbol)
     if bid is None:
         return None
 
     # Placeholder: lógica de 6 condiciones
-    tendencia = True
-    soporte_resistencia = True
-    patron_vela = True
-    ema20 = True
-    rsi = False
-    volumen = True
-
-    condiciones_cumplidas = sum([tendencia, soporte_resistencia, patron_vela, ema20, rsi, volumen])
-
-    if condiciones_cumplidas >= 4:
-        tipo = "BUY" if bid % 2 == 0 else "SELL"  # placeholder decisión
+    condiciones = [True, True, True, True, False, True]
+    if sum(condiciones) >= 4:
+        tipo = "BUY" if bid % 2 == 0 else "SELL"
         return tipo, bid
     return None
 
-# ====== Ejecutar operación ======
 def ejecutar_operacion(symbol="EURUSD"):
     global capital_disponible
-
     resultado_estrategia = analizar_estrategia(symbol)
     if not resultado_estrategia:
         return
 
     tipo, precio_entrada = resultado_estrategia
-
-    # Calcular tamaño de la posición (1% del capital disponible)
     monto_operacion = capital_disponible * 0.01
 
     operacion = {
@@ -81,36 +59,36 @@ def ejecutar_operacion(symbol="EURUSD"):
     }
     operaciones.append(operacion)
 
-    bot_telegram.send_message(
+    # Notificar apertura
+    bot = Bot(token=TELEGRAM_TOKEN)
+    bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=f"💹 Operación ABIERTA: {symbol} | {tipo} | Entrada: {precio_entrada} | Monto: {monto_operacion:.2f}"
     )
     print(f"Operación ABIERTA: {symbol} | {tipo} | Entrada: {precio_entrada} | Monto: {monto_operacion:.2f}")
 
-    # Simular cierre de operación después de 10 segundos (placeholder)
+    # Simular cierre
     time.sleep(10)
     cierre = precio_entrada * 1.001 if tipo == "BUY" else precio_entrada * 0.999
     resultado = "GANADA" if (tipo == "BUY" and cierre > precio_entrada) or (tipo == "SELL" and cierre < precio_entrada) else "PERDIDA"
 
-    # Ajustar capital según resultado
     if resultado == "GANADA":
-        ganancia = monto_operacion * 0.001  # placeholder PnL
-        capital_disponible += ganancia
+        capital_disponible += monto_operacion * 0.001
     else:
-        perdida = monto_operacion * 0.001
-        capital_disponible -= perdida
+        capital_disponible -= monto_operacion * 0.001
 
     operacion["estado"] = "CERRADA"
     operacion["cierre"] = cierre
     operacion["resultado"] = resultado
 
-    bot_telegram.send_message(
+    # Notificar cierre
+    bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
-        text=f"📌 Operación CERRADA: {symbol} | {tipo} | Resultado: {resultado} | Cierre: {cierre} | Capital disponible: {capital_disponible:.2f}"
+        text=f"📌 Operación CERRADA: {symbol} | {tipo} | Resultado: {resultado} | Cierre: {cierre:.5f} | Capital disponible: {capital_disponible:.2f}"
     )
-    print(f"Operación CERRADA: {symbol} | {tipo} | Resultado: {resultado} | Cierre: {cierre} | Capital disponible: {capital_disponible:.2f}")
+    print(f"Operación CERRADA: {symbol} | {tipo} | Resultado: {resultado} | Cierre: {cierre:.5f} | Capital disponible: {capital_disponible:.2f}")
 
-# ====== Loop de estrategia ======
+# ====== Loop estrategia ======
 def run_strategy():
     global estado_bot
     while True:
@@ -149,26 +127,27 @@ async def resumen(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += f"{op['symbol']} | {op['tipo']} | Entrada: {op['entrada']} | Estado: {op['estado']} | Monto: {op['monto']:.2f}\n"
     await update.message.reply_text(msg)
 
-# ====== Inicializar Telegram Bot ======
-def start_telegram_bot():
+async def main_telegram():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("resumen", resumen))
-
     print("✅ Telegram Bot iniciado")
-    app.run_polling()
+    await app.run_polling()
 
-# ====== Servidor Flask ======
-app = Flask(__name__)
+# ====== Flask ======
+flask_app = Flask(__name__)
 
-@app.route("/")
+@flask_app.route("/")
 def home():
-    return "🚀 Bot Sarah IC Markets corriendo en Render con estrategia de swing y gestión de capital 1% por operación"
+    return "🚀 Bot Sarah IC Markets corriendo en Render con estrategia swing y gestión 1% capital"
 
 # ====== Main ======
 if __name__ == "__main__":
-    threading.Thread(target=run_strategy, daemon=True).start()
-    threading.Thread(target=start_telegram_bot, daemon=True).start()
-    app.run(host="0.0.0.0", port=10000)
+    # Ejecutar estrategia en hilo separado
+    Thread(target=run_strategy, daemon=True).start()
+    # Ejecutar Telegram en hilo principal con asyncio
+    asyncio.run(main_telegram())
+    # Flask opcional si quieres exponer web endpoint
+    # flask_app.run(host="0.0.0.0", port=10000, threaded=True)
