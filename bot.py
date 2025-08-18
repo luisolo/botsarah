@@ -1,39 +1,44 @@
-import MetaTrader5 as mt5
+import requests
 from flask import Flask
+import threading
 import time
 
-# ====== Configuración MT5 ======
-ACCOUNT = 12345678          # <- tu número de cuenta ICMarkets
-PASSWORD = "TU_PASSWORD"    # <- tu contraseña
-SERVER = "ICMarketsSC-Demo" # <- servidor ICMarkets (Demo o Real)
+# ====== Configuración IC Markets ======
+API_TOKEN = "TU_API_TOKEN"  # Reemplaza con tu token IC Markets
+BASE_URL = "https://api-demo.icmarkets.com"  # Demo, cambia a real si es necesario
 
-# Inicializar MT5
-def connect_mt5():
-    if not mt5.initialize(login=ACCOUNT, password=PASSWORD, server=SERVER):
-        print("❌ Error al conectar a MT5:", mt5.last_error())
-        return False
-    print("✅ Conectado a MT5 con éxito")
-    return True
+# ====== Funciones del bot ======
+def get_price(symbol="EURUSD"):
+    try:
+        url = f"{BASE_URL}/v1/ticks/{symbol}"
+        headers = {"Authorization": f"Bearer {API_TOKEN}"}
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        bid = data["bid"]
+        ask = data["ask"]
+        print(f"💹 {symbol} - Bid: {bid} | Ask: {ask}")
+        return bid, ask
+    except Exception as e:
+        print("⚠️ Error obteniendo precio:", e)
+        return None, None
 
-# Estrategia simple (ejemplo placeholder)
 def run_strategy():
-    print("🔎 Ejecutando estrategia Sarah...")
-    # Aquí luego pondremos tu lógica de swing trading
-    time.sleep(10)  # simula análisis cada 10s
+    while True:
+        print("🔎 Ejecutando estrategia Sarah en IC Markets...")
+        get_price("EURUSD")
+        time.sleep(10)  # analizar cada 10 segundos
 
-# ====== Flask Server ======
+# ====== Servidor Flask ======
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "🚀 Bot Sarah MT5 está corriendo en Render"
+    return "🚀 Bot Sarah IC Markets corriendo en Render"
 
-# ====== Main Loop ======
+# ====== Main ======
 if __name__ == "__main__":
-    if connect_mt5():
-        print("📡 Bot iniciado correctamente")
-        # Ejecutar en un loop paralelo al servidor
-        import threading
-        threading.Thread(target=lambda: [run_strategy() for _ in iter(int, 1)], daemon=True).start()
-        # Levantar servidor web para Render
-        app.run(host="0.0.0.0", port=10000)
+    print("📡 Bot iniciado correctamente")
+    # Ejecutar estrategia en hilo paralelo
+    threading.Thread(target=run_strategy, daemon=True).start()
+    # Levantar servidor web para Render
+    app.run(host="0.0.0.0", port=10000)
