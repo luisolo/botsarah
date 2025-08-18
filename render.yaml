@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: sarah-mt5
+    env: python
+    buildCommand: ""
+    startCommand: ./start.sh

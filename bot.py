@@ -1,52 +1,39 @@
-import os
-import asyncio
-import websockets
-import json
-from telegram import Bot
+import MetaTrader5 as mt5
+from flask import Flask
+import time
 
-# 🔹 Variables de entorno
-DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DERIV_ENV = os.getenv("DERIV_ENV", "demo")
+# ====== Configuración MT5 ======
+ACCOUNT = 12345678          # <- tu número de cuenta ICMarkets
+PASSWORD = "TU_PASSWORD"    # <- tu contraseña
+SERVER = "ICMarketsSC-Demo" # <- servidor ICMarkets (Demo o Real)
 
-if not TELEGRAM_TOKEN:
-    raise ValueError("Error: TELEGRAM_TOKEN no definido")
+# Inicializar MT5
+def connect_mt5():
+    if not mt5.initialize(login=ACCOUNT, password=PASSWORD, server=SERVER):
+        print("❌ Error al conectar a MT5:", mt5.last_error())
+        return False
+    print("✅ Conectado a MT5 con éxito")
+    return True
 
-bot = Bot(token=TELEGRAM_TOKEN)
+# Estrategia simple (ejemplo placeholder)
+def run_strategy():
+    print("🔎 Ejecutando estrategia Sarah...")
+    # Aquí luego pondremos tu lógica de swing trading
+    time.sleep(10)  # simula análisis cada 10s
 
-async def start_bot():
-    url = "wss://ws.deriv.com/websockets/v6"
-    while True:
-        try:
-            async with websockets.connect(url) as websocket:
-                await websocket.send(json.dumps({"authorize": DERIV_API_TOKEN}))
-                auth_response = await websocket.recv()
-                print("🔑 Autenticación exitosa:", auth_response)
+# ====== Flask Server ======
+app = Flask(__name__)
 
-                await bot.send_message(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    text=f"✅ Bot conectado a Deriv ({DERIV_ENV})"
-                )
+@app.route("/")
+def home():
+    return "🚀 Bot Sarah MT5 está corriendo en Render"
 
-                # Suscribirse a ticks o cualquier otra acción
-                await websocket.send(json.dumps({"ticks": "R_50"}))
-
-                while True:
-                    mensaje = await websocket.recv()
-                    print("📩 Mensaje recibido:", mensaje)
-
-        except Exception as e:
-            print("⚠️ Error de conexión:", e)
-            try:
-                await bot.send_message(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    text=f"⚠️ Error de conexión: {e}. Reintentando en 10s..."
-                )
-            except Exception as telegram_error:
-                print(f"⚠️ Error enviando mensaje a Telegram: {telegram_error}")
-            await asyncio.sleep(10)
-
-# 🔹 Ejecutar bot en Worker
+# ====== Main Loop ======
 if __name__ == "__main__":
-    asyncio.run(start_bot())
+    if connect_mt5():
+        print("📡 Bot iniciado correctamente")
+        # Ejecutar en un loop paralelo al servidor
+        import threading
+        threading.Thread(target=lambda: [run_strategy() for _ in iter(int, 1)], daemon=True).start()
+        # Levantar servidor web para Render
+        app.run(host="0.0.0.0", port=10000)
