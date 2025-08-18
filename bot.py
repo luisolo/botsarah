@@ -1,108 +1,69 @@
-import os
-import threading
-import time
-import random
+import asyncio
 from flask import Flask
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# -----------------------------
-# Variables de entorno
-# -----------------------------
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ICMARKETS_API_KEY = os.getenv("ICMARKETS_API_KEY")  # ejemplo si usas API
-BOT_RUNNING = False
-CAPITAL = 10000  # ejemplo inicial
-POSICION_ACTUAL = None
+# ----------------------------
+# Configuración
+# ----------------------------
+TELEGRAM_TOKEN = "TU_TELEGRAM_TOKEN"
+app_web = Flask(__name__)
 
-# -----------------------------
-# Estrategia swing (ejemplo)
-# -----------------------------
-def estrategia_swing():
-    """
-    Simula decisión de trading.
-    Reemplaza con tus reglas reales de swing trading
-    """
-    decision = random.choice(["BUY", "SELL", None])  # None = no operar
-    return decision
+# Estado del bot
+bot_activo = False
 
-# -----------------------------
-# Funciones Telegram
-# -----------------------------
-def start(update, context):
-    global BOT_RUNNING
-    BOT_RUNNING = True
-    context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="✅ Bot activado. Estrategia swing en ejecución...")
+# ----------------------------
+# Comandos de Telegram
+# ----------------------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global bot_activo
+    bot_activo = True
+    await update.message.reply_text("✅ Bot iniciado")
+    # Aquí podrías iniciar tu estrategia Swing async
+    # asyncio.create_task(estrategia_swing(context))
 
-def stop(update, context):
-    global BOT_RUNNING
-    BOT_RUNNING = False
-    context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="🛑 Bot detenido.")
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global bot_activo
+    bot_activo = False
+    await update.message.reply_text("🛑 Bot detenido")
 
-def status(update, context):
-    estado = "activo" if BOT_RUNNING else "detenido"
-    msg = f"Bot está actualmente: {estado}\nPosición actual: {POSICION_ACTUAL}\nCapital: ${CAPITAL:.2f}"
-    context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg)
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    estado = "activo" if bot_activo else "detenido"
+    await update.message.reply_text(f"⚡ Estado del bot: {estado}")
 
-def resumen(update, context):
-    msg = f"Resumen rápido:\nCapital actual: ${CAPITAL:.2f}\nPosición actual: {POSICION_ACTUAL}"
-    context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg)
+# ----------------------------
+# Inicializar Telegram
+# ----------------------------
+async def iniciar_telegram():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# -----------------------------
-# Función principal de trading
-# -----------------------------
-def trading_loop():
-    global CAPITAL, POSICION_ACTUAL, BOT_RUNNING
-    while True:
-        if BOT_RUNNING:
-            decision = estrategia_swing()
-            if decision:
-                monto_operacion = CAPITAL * 0.01  # 1% del capital
-                POSICION_ACTUAL = f"{decision} ${monto_operacion:.2f}"
-                # Simula resultado
-                resultado = random.choice(["GANADA", "PERDIDA"])
-                if resultado == "GANADA":
-                    CAPITAL += monto_operacion * 0.8  # ejemplo ganancia 80%
-                else:
-                    CAPITAL -= monto_operacion
-                # Notificar en Telegram
-                try:
-                    app_telegram.bot.send_message(
-                        chat_id=TELEGRAM_CHAT_ID,
-                        text=f"💹 {POSICION_ACTUAL}\nResultado: {resultado}\nCapital actualizado: ${CAPITAL:.2f}"
-                    )
-                except Exception as e:
-                    print(f"⚠️ Error enviando mensaje Telegram: {e}")
-                POSICION_ACTUAL = None
-        time.sleep(60)  # espera 1 minuto entre evaluaciones
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("stop", stop))
+    application.add_handler(CommandHandler("status", status))
 
-# -----------------------------
-# Flask app (para Render)
-# -----------------------------
-app = Flask(__name__)
+    print("✅ Telegram Bot iniciado")
+    await application.run_polling()
 
-@app.route("/")
+# ----------------------------
+# Flask - Endpoint web simple
+# ----------------------------
+@app_web.route("/")
 def home():
-    return "Bot Sarah corriendo en Render 🚀"
+    return "Bot Sarah activo en Render!"
 
-# -----------------------------
-# Inicializar Telegram en hilo
-# -----------------------------
-app_telegram = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app_telegram.add_handler(CommandHandler("start", start))
-app_telegram.add_handler(CommandHandler("stop", stop))
-app_telegram.add_handler(CommandHandler("status", status))
-app_telegram.add_handler(CommandHandler("resumen", resumen))
+# ----------------------------
+# Ejecutar Flask y Telegram juntos
+# ----------------------------
+async def main():
+    # Lanzar Flask en una tarea async separada
+    loop = asyncio.get_event_loop()
+    loop.create_task(asyncio.to_thread(app_web.run, host="0.0.0.0", port=10000, debug=False))
 
-threading.Thread(target=lambda: app_telegram.run_polling(poll_interval=1.0, stop_signals=[]), daemon=True).start()
+    # Iniciar Telegram
+    await iniciar_telegram()
 
-# -----------------------------
-# Inicializar loop de trading en hilo
-# -----------------------------
-threading.Thread(target=trading_loop, daemon=True).start()
-
-# -----------------------------
-# Ejecutar Flask
-# -----------------------------
+# ----------------------------
+# Ejecutar todo
+# ----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    asyncio.run(main())
