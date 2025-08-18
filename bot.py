@@ -1,30 +1,30 @@
 import asyncio
+import os
 from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- CONFIG ---
-TELEGRAM_TOKEN = "TU_TOKEN_AQUI"
-TELEGRAM_CHAT_ID = "TU_CHAT_ID_AQUI"
+# Variables de entorno
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# --- HANDLER COMANDO /start ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("¡Hola! Bot Sarah activo ✅")
 
-# --- TELEGRAM BOT ---
-async def telegram_bot():
-    # Crear la aplicación de Telegram
-    app_telegram = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    
-    # Agregar handler /start
-    app_telegram.add_handler(CommandHandler("start", start))
-    
-    # Saludo automático al iniciar
-    bot = Bot(TELEGRAM_TOKEN)
+async def main():
+    # Crear aplicación del bot
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    # Registrar comando /start
+    app.add_handler(CommandHandler("start", start_command))
+
+    # Enviar mensaje de saludo automático al iniciar
+    bot = app.bot
     await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text="🤖 Bot Sarah en línea y listo!")
 
-    # Iniciar polling
-    await app_telegram.run_polling()
+    # Iniciar el bot
+    await app.start()
+    await app.updater.start_polling()
+    await asyncio.Event().wait()  # Mantener el bot corriendo
 
-# --- MAIN ---
 if __name__ == "__main__":
-    asyncio.run(telegram_bot())
+    asyncio.run(main())
