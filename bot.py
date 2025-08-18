@@ -3,7 +3,7 @@ import threading
 import time
 from flask import Flask
 from telegram import Bot, Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ====== Configuración IC Markets ======
 API_TOKEN = "TU_API_TOKEN"  # Reemplaza con tu token IC Markets
@@ -122,22 +122,24 @@ def run_strategy():
         time.sleep(5)
 
 # ====== Comandos Telegram ======
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global bot_activo
     bot_activo = True
-    update.message.reply_text("✅ Bot ACTIVADO. Comenzará a ejecutar operaciones.")
+    await update.message.reply_text("✅ Bot ACTIVADO. Comenzará a ejecutar operaciones.")
 
-def stop(update: Update, context: CallbackContext):
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global bot_activo
     bot_activo = False
-    update.message.reply_text("🛑 Bot DETENIDO. No ejecutará nuevas operaciones.")
+    await update.message.reply_text("🛑 Bot DETENIDO. No ejecutará nuevas operaciones.")
 
-def status(update: Update, context: CallbackContext):
-    update.message.reply_text(f"📊 Estado del bot: {estado_bot}\nCapital disponible: {capital_disponible:.2f}\nOperaciones realizadas: {len(operaciones)}")
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        f"📊 Estado del bot: {estado_bot}\nCapital disponible: {capital_disponible:.2f}\nOperaciones realizadas: {len(operaciones)}"
+    )
 
-def resumen(update: Update, context: CallbackContext):
+async def resumen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not operaciones:
-        update.message.reply_text("📋 No se han realizado operaciones aún.")
+        await update.message.reply_text("📋 No se han realizado operaciones aún.")
         return
     msg = "📋 Resumen de operaciones:\n"
     for op in operaciones:
@@ -145,19 +147,18 @@ def resumen(update: Update, context: CallbackContext):
             msg += f"{op['symbol']} | {op['tipo']} | Entrada: {op['entrada']} | Cierre: {op['cierre']} | Resultado: {op['resultado']} | Monto: {op['monto']:.2f}\n"
         else:
             msg += f"{op['symbol']} | {op['tipo']} | Entrada: {op['entrada']} | Estado: {op['estado']} | Monto: {op['monto']:.2f}\n"
-    update.message.reply_text(msg)
+    await update.message.reply_text(msg)
 
 # ====== Inicializar Telegram Bot ======
 def start_telegram_bot():
-    updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("stop", stop))
-    dp.add_handler(CommandHandler("status", status))
-    dp.add_handler(CommandHandler("resumen", resumen))
-    updater.start_polling()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("stop", stop))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("resumen", resumen))
+
     print("✅ Telegram Bot iniciado")
-    updater.idle()
+    app.run_polling()
 
 # ====== Servidor Flask ======
 app = Flask(__name__)
