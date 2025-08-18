@@ -1,52 +1,70 @@
+import os
 import threading
 import asyncio
 from flask import Flask
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Bot
+from telegram.ext import Application, CommandHandler
 
-# ---------------- Flask para mantener vivo el servicio ----------------
-app_flask = Flask(__name__)
+# ===========================
+# Variables de entorno
+# ===========================
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-@app_flask.route("/")
-def home():
-    return "Bot Sarah activo en Render"
+if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    raise ValueError("⚠️ TELEGRAM_TOKEN o TELEGRAM_CHAT_ID no definidos en variables de entorno.")
 
-# ---------------- Telegram Bot ----------------
-TOKEN = "TU_TOKEN_TELEGRAM"  # reemplaza con tu token
-app_telegram = ApplicationBuilder().token(TOKEN).build()
+TELEGRAM_CHAT_ID = int(TELEGRAM_CHAT_ID)
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot Sarah activo ✅")
+# ===========================
+# Inicializar Bot
+# ===========================
+bot = Bot(token=TELEGRAM_TOKEN)
+app_telegram = Application.builder().token(TELEGRAM_TOKEN).build()
+
+def enviar_mensaje(texto: str):
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=texto)
+    except Exception as e:
+        print(f"⚠️ Error al enviar mensaje: {e}")
+
+# ===========================
+# Comandos de Telegram
+# ===========================
+async def status(update, context):
+    await update.message.reply_text("🤖 Bot activo en Render, esperando señales...")
 
 app_telegram.add_handler(CommandHandler("status", status))
 
-# ---------------- Trading (integrar tu lógica aquí) ----------------
-def trading_loop():
-    import time
+# ===========================
+# Loop principal de trading (ejemplo)
+# ===========================
+async def trading_loop():
     while True:
-        try:
-            # ---------------- Ejemplo de lógica ----------------
-            # Aquí agregas tu análisis técnico de Sarah (EMA, RSI, velas, volumen, etc.)
-            par = "EURUSD"
-            tipo_entrada = "ALCISTA"
-            resultado = "GANADA"  # o "PERDIDA"
-            mensaje = f"Señal: {par} {tipo_entrada}\nResultado: {resultado}"
-            
-            # Enviar mensaje a Telegram
-            asyncio.run_coroutine_threadsafe(
-                app_telegram.bot.send_message(chat_id=TU_CHAT_ID, text=mensaje),
-                app_telegram.loop
-            )
+        # Aquí va tu lógica de trading, análisis y señales
+        # ejemplo:
+        enviar_mensaje("📈 Señal detectada: ejemplo")
+        await asyncio.sleep(30*60)  # enviar cada 30 min para prueba
 
-            time.sleep(1800)  # Espera 30 minutos entre señales de ejemplo
-        except Exception as e:
-            print("Error en trading_loop:", e)
-            time.sleep(5)
+# ===========================
+# Ejecutar Telegram en hilo
+# ===========================
+def run_telegram():
+    asyncio.run(app_telegram.run_polling())
 
-# ---------------- Hilos ----------------
-threading.Thread(target=lambda: asyncio.run(app_telegram.run_polling()), daemon=True).start()
-threading.Thread(target=trading_loop, daemon=True).start()
+threading.Thread(target=run_telegram, daemon=True).start()
 
-# ---------------- Ejecutar Flask ----------------
+# ===========================
+# Flask para Render
+# ===========================
+flask_app = Flask("BotSarah")
+
+@flask_app.route("/")
+def home():
+    return "✅ Bot Sarah activo en Render"
+
 if __name__ == "__main__":
-    app_flask.run(host="0.0.0.0", port=10000)
+    # Lanzar loop de trading en segundo hilo
+    threading.Thread(target=lambda: asyncio.run(trading_loop()), daemon=True).start()
+    # Ejecutar servidor Flask
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
