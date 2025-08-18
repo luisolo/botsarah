@@ -1,70 +1,47 @@
 import os
-import threading
 import asyncio
+import threading
 from flask import Flask
 from telegram import Bot
-from telegram.ext import Application, CommandHandler
+from telegram.ext import ApplicationBuilder
 
-# ===========================
 # Variables de entorno
-# ===========================
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-    raise ValueError("⚠️ TELEGRAM_TOKEN o TELEGRAM_CHAT_ID no definidos en variables de entorno.")
+# Inicializa Flask
+app = Flask("BotSarah")
 
-TELEGRAM_CHAT_ID = int(TELEGRAM_CHAT_ID)
+@app.route("/")
+def home():
+    return "Bot Sarah activo y en línea"
 
-# ===========================
-# Inicializar Bot
-# ===========================
+# Inicializa Telegram
 bot = Bot(token=TELEGRAM_TOKEN)
-app_telegram = Application.builder().token(TELEGRAM_TOKEN).build()
+app_telegram = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-def enviar_mensaje(texto: str):
-    try:
-        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=texto)
-    except Exception as e:
-        print(f"⚠️ Error al enviar mensaje: {e}")
+# Función para enviar saludo al iniciar
+async def saludar_inicio():
+    texto = "¡Hola! El bot está en línea y listo para operar."
+    await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=texto)
 
-# ===========================
-# Comandos de Telegram
-# ===========================
-async def status(update, context):
-    await update.message.reply_text("🤖 Bot activo en Render, esperando señales...")
+# Función principal de Telegram
+async def run_telegram_async():
+    await saludar_inicio()          # Envía saludo al iniciar
+    await app_telegram.run_polling()  # Corre el polling de Telegram
 
-app_telegram.add_handler(CommandHandler("status", status))
-
-# ===========================
-# Loop principal de trading (ejemplo)
-# ===========================
-async def trading_loop():
-    while True:
-        # Aquí va tu lógica de trading, análisis y señales
-        # ejemplo:
-        enviar_mensaje("📈 Señal detectada: ejemplo")
-        await asyncio.sleep(30*60)  # enviar cada 30 min para prueba
-
-# ===========================
-# Ejecutar Telegram en hilo
-# ===========================
 def run_telegram():
-    asyncio.run(app_telegram.run_polling())
+    asyncio.run(run_telegram_async())
 
+# Ejecuta Telegram en un hilo separado para no bloquear Flask
 threading.Thread(target=run_telegram, daemon=True).start()
 
-# ===========================
-# Flask para Render
-# ===========================
-flask_app = Flask("BotSarah")
+# ===========================================
+# Aquí podrías agregar tus funciones de estrategia
+# y trading, por ejemplo: trading_loop(), análisis de velas, EMA, RSI, etc.
+# ===========================================
 
-@flask_app.route("/")
-def home():
-    return "✅ Bot Sarah activo en Render"
-
+# Ejecuta Flask (Render escucha en $PORT)
 if __name__ == "__main__":
-    # Lanzar loop de trading en segundo hilo
-    threading.Thread(target=lambda: asyncio.run(trading_loop()), daemon=True).start()
-    # Ejecutar servidor Flask
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
